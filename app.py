@@ -7,12 +7,12 @@ import os
 # CONFIG
 # =========================
 
-api_id = int(os.getenv("api_id"))
-api_hash = os.getenv("api_hash")
+api_id = int(os.environ.get("api_id"))
+api_hash = os.environ.get("api_hash")
 
-TOPIC = os.getenv("TOPIC")
+TOPIC = os.environ.get("TOPIC")
 
-CANAL_ID = int(os.getenv("CHANNEL_ID"))
+CANAL_ID = int(os.environ.get("CHANNEL_ID"))
 
 # =========================
 # VALIDACIÓN VARIABLES
