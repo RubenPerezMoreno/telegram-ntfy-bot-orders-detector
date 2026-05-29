@@ -7,28 +7,28 @@ import os
 # CONFIG
 # =========================
 
-api_id = int(os.getenv("api_id"))
-api_hash = os.getenv("api_hash")
+api_id = int(os.environ.get("api_id"))
+api_hash = os.environ.get("api_hash")
 
-TOPIC = os.getenv("TOPIC")
+TOPIC = os.environ.get("TOPIC")
 
-CANAL_ID = int(os.getenv("CHANNEL_ID"))
+CHANNEL_ID = int(os.environ.get("CHANNEL_ID"))
 
 # =========================
 # VALIDACIÓN VARIABLES
 # =========================
 
 if not api_id:
-    raise Exception("TOPIC no configurado")
+    raise Exception("api_id no configurado")
 
 if not api_hash:
-    raise Exception("CANAL_ID no configurado")
+    raise Exception("api_hash no configurado")
 
 if not TOPIC:
     raise Exception("TOPIC no configurado")
 
-if not CANAL_ID:
-    raise Exception("CANAL_ID no configurado")
+if not CHANNEL_ID:
+    raise Exception("CHANNEL_ID no configurado")
 
 # =========================
 # CLIENT
