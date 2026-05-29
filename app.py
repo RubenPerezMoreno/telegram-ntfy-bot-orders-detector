@@ -19,16 +19,16 @@ CANAL_ID = int(os.environ.get("CHANNEL_ID"))
 # =========================
 
 if not api_id:
-    raise Exception("TOPIC no configurado")
+    raise Exception("api_id no configurado")
 
 if not api_hash:
-    raise Exception("CANAL_ID no configurado")
+    raise Exception("api_hash no configurado")
 
 if not TOPIC:
     raise Exception("TOPIC no configurado")
 
-if not CANAL_ID:
-    raise Exception("CANAL_ID no configurado")
+if not CHANNEL_ID:
+    raise Exception("CHANNEL_ID no configurado")
 
 # =========================
 # CLIENT
