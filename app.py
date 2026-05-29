@@ -12,7 +12,7 @@ api_hash = os.environ.get("api_hash")
 
 TOPIC = os.environ.get("TOPIC")
 
-CANAL_ID = int(os.environ.get("CHANNEL_ID"))
+CHANNEL_ID = int(os.environ.get("CHANNEL_ID"))
 
 # =========================
 # VALIDACIÓN VARIABLES
