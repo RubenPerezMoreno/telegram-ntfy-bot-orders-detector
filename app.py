@@ -1,4 +1,6 @@
 from telethon import TelegramClient, events
+from flask import Flask
+from threading import Thread
 import requests
 import re
 import os
@@ -7,18 +9,18 @@ import os
 # CONFIG
 # =========================
 
-api_id = int(os.environ.get("api_id"))
+api_id_raw = os.environ.get("api_id")
 api_hash = os.environ.get("api_hash")
 
 TOPIC = os.environ.get("TOPIC")
 
-CHANNEL_ID = int(os.environ.get("CHANNEL_ID"))
+CHANNEL_ID_raw = os.environ.get("CHANNEL_ID")
 
 # =========================
 # VALIDACIÓN VARIABLES
 # =========================
 
-if not api_id:
+if not api_id_raw:
     raise Exception("api_id no configurado")
 
 if not api_hash:
@@ -27,17 +29,31 @@ if not api_hash:
 if not TOPIC:
     raise Exception("TOPIC no configurado")
 
-if not CHANNEL_ID:
+if not CHANNEL_ID_raw:
     raise Exception("CHANNEL_ID no configurado")
+
+api_id = int(api_id_raw)
+CHANNEL_ID = int(CHANNEL_ID_raw)
 
 # =========================
 # CLIENT
 # =========================
 
 client = TelegramClient('session', api_id, api_hash)
+app = Flask(__name__)
 
 # EVITAR DUPLICADOS
 mensajes_procesados = set()
+
+
+@app.get("/")
+def home():
+    return {"status": "ok", "service": "telegram-ntfy-bot-orders-detector"}
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "healthy"}
 
 # =========================
 # REGEX PRINCIPAL
@@ -207,23 +223,12 @@ print("BOT INICIADO")
 print("ESCUCHANDO CANAL...")
 print("===================================\n")
 
-client.start()
-client.run_until_disconnected()
 
-
-# =========================================
-# WEB SERVER - Port Binding for Render.com
-# =========================================
-
-from flask import Flask
-
-app = Flask(__name__)
-
-@app.route("/")
-def index():
-    return "Bot is running"
-
-if __name__ == "__main__":
+def run_web_server():
     app.run(host="0.0.0.0", port=8000)
 
-# =========================
+
+Thread(target=run_web_server, daemon=True).start()
+
+client.start()
+client.run_until_disconnected()
