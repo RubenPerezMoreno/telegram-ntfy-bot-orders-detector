@@ -1,9 +1,13 @@
-from telethon import TelegramClient, events
-from flask import Flask
-from threading import Thread
-import requests
-import re
+import asyncio
 import os
+import re
+from threading import Thread
+
+import requests
+from flask import Flask
+from telethon import TelegramClient, events
+from telethon.errors.common import TypeNotFoundError
+from telethon.sessions import StringSession
 
 # =========================
 # CONFIG
@@ -12,9 +16,9 @@ import os
 api_id_raw = os.environ.get("api_id")
 api_hash = os.environ.get("api_hash")
 
-TOPIC = os.environ.get("TOPIC")
+topic = os.environ.get("topic")
 
-CHANNEL_ID_raw = os.environ.get("CHANNEL_ID")
+channel_id_raw = os.environ.get("channel_id")
 
 # =========================
 # VALIDACIÓN VARIABLES
@@ -26,21 +30,33 @@ if not api_id_raw:
 if not api_hash:
     raise Exception("api_hash no configurado")
 
-if not TOPIC:
-    raise Exception("TOPIC no configurado")
+if not topic:
+    raise Exception("topic no configurado")
 
-if not CHANNEL_ID_raw:
-    raise Exception("CHANNEL_ID no configurado")
+if not channel_id_raw:
+    raise Exception("channel_id no configurado")
 
 api_id = int(api_id_raw)
-CHANNEL_ID = int(CHANNEL_ID_raw)
+channel_id = int(channel_id_raw)
 
 # =========================
 # CLIENT
 # =========================
 
-client = TelegramClient('session', api_id, api_hash)
+session_string = os.environ.get("TELETHON_SESSION_STRING")
+running_on_render = os.environ.get("RENDER") == "true" or "RENDER_SERVICE_ID" in os.environ
+
+if session_string:
+    client = TelegramClient(StringSession(session_string), api_id, api_hash)
+else:
+    client = TelegramClient('session', api_id, api_hash)
 app = Flask(__name__)
+
+if running_on_render and not session_string:
+    raise RuntimeError(
+        "TELETHON_SESSION_STRING no esta configurado en Render. "
+        "Genera la StringSession en local y guardala como variable de entorno."
+    )
 
 # EVITAR DUPLICADOS
 mensajes_procesados = set()
@@ -68,7 +84,7 @@ PATRON_SENAL = re.compile(
 # HANDLER
 # =========================
 
-@client.on(events.NewMessage(chats=CHANNEL_ID))
+@client.on(events.NewMessage(chats=channel_id))
 async def handler(event):
 
     print("\n==============================")
@@ -188,7 +204,7 @@ async def handler(event):
     try:
 
         r = requests.post(
-            f"https://ntfy.sh/{TOPIC}",
+            f"https://ntfy.sh/{topic}",
             data=notificacion.encode("utf-8"),
             headers={
                 "X-Title": "",
@@ -230,5 +246,33 @@ def run_web_server():
 
 Thread(target=run_web_server, daemon=True).start()
 
-client.start()
-client.run_until_disconnected()
+async def run_client():
+    while True:
+        try:
+            if session_string:
+                await client.connect()
+
+                if not await client.is_user_authorized():
+                    raise RuntimeError(
+                        "TELETHON_SESSION_STRING es invalida o ya no esta autorizada. "
+                        "Regenera la sesion desde local."
+                    )
+            else:
+                await client.start()
+
+            await client.run_until_disconnected()
+            break
+        except TypeNotFoundError as exc:
+            print("ERROR TELETHON: constructor TL desconocido al procesar updates")
+            print(str(exc))
+            print("Reintentando con una nueva conexión en 5 segundos...")
+
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+
+            await asyncio.sleep(5)
+
+
+asyncio.run(run_client())
