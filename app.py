@@ -9,6 +9,7 @@ import requests
 from flask import Flask, render_template_string
 from telethon import TelegramClient, events
 from telethon.errors.common import TypeNotFoundError
+from telethon.errors.rpcerrorlist import AuthKeyDuplicatedError
 from telethon.sessions import StringSession
 
 # =========================
@@ -17,7 +18,6 @@ from telethon.sessions import StringSession
 
 api_id_raw = os.environ.get("api_id")
 api_hash = os.environ.get("api_hash")
-
 topic = os.environ.get("topic")
 
 channel_id_raw = os.environ.get("channel_id")
@@ -127,50 +127,63 @@ def home():
                     font-family: Arial, sans-serif;
                     background: linear-gradient(180deg, #0b1020 0%, #101935 100%);
                     color: var(--text);
+                    min-height: 100vh;
+                    overflow: hidden;
                 }
                 .wrap {
                     max-width: 1100px;
                     margin: 0 auto;
-                    padding: 24px;
+                    padding: 32px 24px;
+                    height: 100vh;
+                    box-sizing: border-box;
+                    display: flex;
                 }
                 .card {
                     background: rgba(18, 26, 51, 0.92);
                     border: 1px solid var(--border);
                     border-radius: 16px;
-                    padding: 20px;
+                    padding: 24px 24px 20px;
                     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+                    height: 100%;
+                    min-height: 0;
+                    width: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
                 }
                 h1 {
-                    margin: 0 0 8px;
+                    margin: 0;
                     font-size: 28px;
                 }
                 .meta {
                     color: var(--muted);
-                    margin-bottom: 16px;
+                    margin-bottom: 4px;
                 }
                 pre {
-                    margin: 0;
+                    margin: 4px 0 0;
                     padding: 16px;
                     background: #09101f;
                     border: 1px solid var(--border);
                     border-radius: 12px;
                     white-space: pre-wrap;
                     word-break: break-word;
-                    min-height: 60vh;
+                    flex: 1;
+                    min-height: 0;
                     overflow: auto;
                 }
                 .empty {
                     color: var(--muted);
                 }
                 .badge {
-                    display: inline-block;
+                    display: inline-flex;
+                    align-self: flex-start;
                     padding: 4px 10px;
                     border-radius: 999px;
                     background: rgba(125, 211, 252, 0.12);
                     color: var(--accent);
                     border: 1px solid rgba(125, 211, 252, 0.28);
                     font-size: 12px;
-                    margin-bottom: 12px;
+                    margin-bottom: 0;
                 }
             </style>
         </head>
@@ -385,6 +398,17 @@ async def run_client():
 
             await client.run_until_disconnected()
             break
+        except AuthKeyDuplicatedError:
+            print("ERROR TELEGRAM: la sesion esta siendo usada desde otra IP al mismo tiempo")
+            print("Deten la otra instancia o genera una TELETHON_SESSION_STRING nueva solo para Render")
+            print("Reintentando conexion en 60 segundos...")
+
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+
+            await asyncio.sleep(60)
         except TypeNotFoundError as exc:
             print("ERROR TELETHON: constructor TL desconocido al procesar updates")
             print(str(exc))
