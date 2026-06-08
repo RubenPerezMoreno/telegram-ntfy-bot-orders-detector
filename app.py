@@ -2,7 +2,6 @@ import asyncio
 import builtins
 import os
 import re
-from collections import deque
 from datetime import datetime
 from threading import Lock, Thread
 
@@ -24,6 +23,7 @@ topic = os.environ.get("topic")
 channel_id_raw = os.environ.get("channel_id")
 
 PORT = int(os.environ.get("PORT", "8000"))
+LOG_FILE = os.environ.get("LOG_FILE", "app.log")
 
 # =========================
 # VALIDACIÓN VARIABLES
@@ -65,8 +65,21 @@ if running_on_render and not session_string:
 
 # EVITAR DUPLICADOS
 mensajes_procesados = set()
-log_buffer = deque(maxlen=400)
 log_lock = Lock()
+
+log_dir = os.path.dirname(LOG_FILE)
+if log_dir:
+    os.makedirs(log_dir, exist_ok=True)
+
+
+def read_log_lines():
+    try:
+        with open(LOG_FILE, "r", encoding="utf-8") as log_file:
+            return [line.rstrip("\n") for line in log_file]
+    except FileNotFoundError:
+        return []
+    except Exception as exc:
+        return [f"[ERROR] No se pudo leer {LOG_FILE}: {exc}"]
 
 
 def log(*args, sep=" ", end="\n", flush=False):
@@ -74,9 +87,12 @@ def log(*args, sep=" ", end="\n", flush=False):
     builtins.print(message, end=end, flush=flush)
 
     timestamp = datetime.now().strftime("%H:%M:%S")
-    for line in message.splitlines() or [""]:
-        with log_lock:
-            log_buffer.append(f"[{timestamp}] {line}")
+    lines = message.splitlines() or [""]
+
+    with log_lock:
+        with open(LOG_FILE, "a", encoding="utf-8") as log_file:
+            for line in lines:
+                log_file.write(f"[{timestamp}] {line}\n")
 
 
 print = log
@@ -85,7 +101,7 @@ print = log
 @app.get("/")
 def home():
     with log_lock:
-        logs = list(log_buffer)
+        logs = read_log_lines()
 
     return render_template_string(
         """
