@@ -1,10 +1,13 @@
 import asyncio
+import builtins
 import os
 import re
-from threading import Thread
+from collections import deque
+from datetime import datetime
+from threading import Lock, Thread
 
 import requests
-from flask import Flask
+from flask import Flask, render_template_string
 from telethon import TelegramClient, events
 from telethon.errors.common import TypeNotFoundError
 from telethon.sessions import StringSession
@@ -19,6 +22,8 @@ api_hash = os.environ.get("api_hash")
 topic = os.environ.get("topic")
 
 channel_id_raw = os.environ.get("channel_id")
+
+PORT = int(os.environ.get("PORT", "8000"))
 
 # =========================
 # VALIDACIÓN VARIABLES
@@ -60,11 +65,113 @@ if running_on_render and not session_string:
 
 # EVITAR DUPLICADOS
 mensajes_procesados = set()
+log_buffer = deque(maxlen=400)
+log_lock = Lock()
+
+
+def log(*args, sep=" ", end="\n", flush=False):
+    message = sep.join(str(arg) for arg in args)
+    builtins.print(message, end=end, flush=flush)
+
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    for line in message.splitlines() or [""]:
+        with log_lock:
+            log_buffer.append(f"[{timestamp}] {line}")
+
+
+print = log
 
 
 @app.get("/")
 def home():
-    return {"status": "ok", "service": "telegram-ntfy-bot-orders-detector"}
+    with log_lock:
+        logs = list(log_buffer)
+
+    return render_template_string(
+        """
+        <!doctype html>
+        <html lang="es">
+        <head>
+            <meta charset="utf-8">
+            <meta http-equiv="refresh" content="3">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Telegram NTFY Bot</title>
+            <style>
+                :root {
+                    color-scheme: dark;
+                    --bg: #0b1020;
+                    --panel: #121a33;
+                    --border: #24304f;
+                    --text: #e7ecff;
+                    --muted: #9aa6c8;
+                    --accent: #7dd3fc;
+                }
+                body {
+                    margin: 0;
+                    font-family: Arial, sans-serif;
+                    background: linear-gradient(180deg, #0b1020 0%, #101935 100%);
+                    color: var(--text);
+                }
+                .wrap {
+                    max-width: 1100px;
+                    margin: 0 auto;
+                    padding: 24px;
+                }
+                .card {
+                    background: rgba(18, 26, 51, 0.92);
+                    border: 1px solid var(--border);
+                    border-radius: 16px;
+                    padding: 20px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+                }
+                h1 {
+                    margin: 0 0 8px;
+                    font-size: 28px;
+                }
+                .meta {
+                    color: var(--muted);
+                    margin-bottom: 16px;
+                }
+                pre {
+                    margin: 0;
+                    padding: 16px;
+                    background: #09101f;
+                    border: 1px solid var(--border);
+                    border-radius: 12px;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                    min-height: 60vh;
+                    overflow: auto;
+                }
+                .empty {
+                    color: var(--muted);
+                }
+                .badge {
+                    display: inline-block;
+                    padding: 4px 10px;
+                    border-radius: 999px;
+                    background: rgba(125, 211, 252, 0.12);
+                    color: var(--accent);
+                    border: 1px solid rgba(125, 211, 252, 0.28);
+                    font-size: 12px;
+                    margin-bottom: 12px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="wrap">
+                <div class="card">
+                    <div class="badge">Web Service activo</div>
+                    <h1>Logs de la aplicacion</h1>
+                    <div class="meta">La pagina se actualiza sola cada 3 segundos.</div>
+                    <pre>{% if logs %}{{ logs|join('\n') }}{% else %}<span class="empty">Aun no hay logs.</span>{% endif %}</pre>
+                </div>
+            </div>
+        </body>
+        </html>
+        """,
+        logs=logs,
+    )
 
 
 @app.get("/healthz")
@@ -76,7 +183,7 @@ def healthz():
 # =========================
 
 PATRON_SENAL = re.compile(
-    r"Nueva operación:\s*XAUUSD\s*-\s*(Buy|Sell)",
+    r"Nueva operación:\s*[A-Z0-9._/-]+\s*-\s*(Buy|Sell)",
     re.IGNORECASE
 )
 
@@ -87,7 +194,7 @@ PATRON_SENAL = re.compile(
 @client.on(events.NewMessage(chats=channel_id))
 async def handler(event):
 
-    print("\n==============================")
+    print("\n============================")
     print("MENSAJE RECIBIDO")
     print("==============================")
 
@@ -241,7 +348,7 @@ print("===================================\n")
 
 
 def run_web_server():
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=PORT)
 
 
 Thread(target=run_web_server, daemon=True).start()
