@@ -25,6 +25,18 @@ channel_id_raw = os.environ.get("channel_id")
 PORT = int(os.environ.get("PORT", "8000"))
 LOG_FILE = os.environ.get("LOG_FILE", "app.log")
 
+# =========== CONFIG PRE RENDER ==========
+
+# api_id_raw = 
+# api_hash = ''
+
+# topic = ""
+
+# channel_id_raw = 
+
+# PORT = int(os.environ.get("PORT", "8000"))
+# LOG_FILE = os.environ.get("LOG_FILE", "app.log")
+
 # =========================
 # VALIDACIÓN VARIABLES
 # =========================
@@ -43,6 +55,10 @@ if not channel_id_raw:
 
 api_id = int(api_id_raw)
 channel_id = int(channel_id_raw)
+
+# TRUE = filtra solo señales esperadas
+# FALSE = reenvia todos los mensajes del canal configurado
+FILTER_MESSAGES = os.environ.get("FILTER_MESSAGES", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 # =========================
 # CLIENT
@@ -253,75 +269,82 @@ async def handler(event):
     # VALIDACIONES
     # =========================
 
-    if not PATRON_SENAL.search(mensaje):
-        print("Mensaje ignorado -> No contiene patrón principal")
-        return
+    if FILTER_MESSAGES:
+        if not PATRON_SENAL.search(mensaje):
+            print("Mensaje ignorado -> No contiene patrón principal")
+            return
 
-    if not ("Buy" in mensaje or "Sell" in mensaje):
-        print("Mensaje ignorado -> No contiene Buy/Sell")
-        return
+        if not ("Buy" in mensaje or "Sell" in mensaje):
+            print("Mensaje ignorado -> No contiene Buy/Sell")
+            return
 
-    if "Punto de entrada" not in mensaje:
-        print("Mensaje ignorado -> Falta Punto de entrada")
-        return
+        if "Punto de entrada" not in mensaje:
+            print("Mensaje ignorado -> Falta Punto de entrada")
+            return
 
-    if "Stop Loss" not in mensaje:
-        print("Mensaje ignorado -> Falta Stop Loss")
-        return
+        if "Stop Loss" not in mensaje:
+            print("Mensaje ignorado -> Falta Stop Loss")
+            return
 
-    # =========================
-    # VALIDAR TPS
-    # =========================
+        # =========================
+        # VALIDAR TPS
+        # =========================
 
-    tps = re.findall(r"- TP\d+", mensaje)
+        tps = re.findall(r"- TP\d+", mensaje)
 
-    print("\nTPS DETECTADOS:")
-    print(tps)
-
-    # Deben existir EXACTAMENTE 10 TPs
-    if len(tps) != 10:
-        print(f"Mensaje ignorado -> Numero incorrecto de TPs ({len(tps)})")
-        return
-
-    # Deben ser EXACTAMENTE TP1 a TP10
-    tps_esperados = [
-        "- TP1", "- TP2", "- TP3", "- TP4", "- TP5",
-        "- TP6", "- TP7", "- TP8", "- TP9", "- TP10"
-    ]
-
-    if tps != tps_esperados:
-        print("Mensaje ignorado -> Los TPs no coinciden exactamente")
-
-        print("Esperados:")
-        print(tps_esperados)
-
-        print("Recibidos:")
+        print("\nTPS DETECTADOS:")
         print(tps)
 
-        return
+        # Deben existir EXACTAMENTE 10 TPs
+        if len(tps) != 10:
+            print(f"Mensaje ignorado -> Numero incorrecto de TPs ({len(tps)})")
+            return
 
-    # =========================
-    # EXTRAER SOLO LA SEÑAL
-    # =========================
+        # Deben ser EXACTAMENTE TP1 a TP10
+        tps_esperados = [
+            "- TP1", "- TP2", "- TP3", "- TP4", "- TP5",
+            "- TP6", "- TP7", "- TP8", "- TP9", "- TP10"
+        ]
 
-    match = re.search(
-        r"(🏆 Nueva operación:.*?🛑 Stop Loss fijado en .*?)(?:\n|$)",
-        mensaje,
-        re.DOTALL
-    )
+        if tps != tps_esperados:
+            print("Mensaje ignorado -> Los TPs no coinciden exactamente")
 
-    if not match:
-        print("Mensaje ignorado -> No se pudo extraer la señal")
-        return
+            print("Esperados:")
+            print(tps_esperados)
 
-    mensaje_filtrado = match.group(1).strip()
+            print("Recibidos:")
+            print(tps)
 
-    print("\n==============================")
-    print("SEÑAL DETECTADA")
-    print("==============================")
+            return
 
-    print("\nMENSAJE FILTRADO:")
-    print(mensaje_filtrado)
+        # =========================
+        # EXTRAER SOLO LA SEÑAL
+        # =========================
+
+        match = re.search(
+            r"(🏆 Nueva operación:.*?🛑 Stop Loss fijado en .*?)(?:\n|$)",
+            mensaje,
+            re.DOTALL
+        )
+
+        if not match:
+            print("Mensaje ignorado -> No se pudo extraer la señal")
+            return
+
+        mensaje_a_enviar = match.group(1).strip()
+
+        print("\n==============================")
+        print("SEÑAL DETECTADA")
+        print("==============================")
+
+        print("\nMENSAJE FILTRADO:")
+        print(mensaje_a_enviar)
+    else:
+        print("Filtro de mensajes desactivado -> reenviando mensaje completo")
+        mensaje_a_enviar = mensaje or "(sin texto)"
+
+        print("\nMENSAJE A ENVIAR:")
+        print(mensaje_a_enviar)
 
     # =========================
     # NOTIFICACION
@@ -330,7 +353,7 @@ async def handler(event):
     notificacion = f"""
 🚨 NUEVA SEÑAL 🚨
 
-{mensaje_filtrado}
+{mensaje_a_enviar}
 """
 
     # =========================
