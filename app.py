@@ -54,7 +54,25 @@ if not channel_id_raw:
     raise Exception("channel_id no configurado")
 
 api_id = int(api_id_raw)
-channel_id = int(channel_id_raw)
+
+
+def parse_channel_ids(raw_value):
+    values = [item.strip() for item in raw_value.replace(";", ",").split(",") if item.strip()]
+    if not values:
+        raise Exception("channel_id no configurado")
+
+    parsed = []
+    for value in values:
+        try:
+            parsed.append(int(value))
+        except ValueError as exc:
+            raise Exception(f"channel_id inválido: {value}") from exc
+
+    return parsed
+
+
+channel_ids = parse_channel_ids(channel_id_raw)
+channel_id = channel_ids[0] if len(channel_ids) == 1 else channel_ids
 
 # TRUE = filtra solo señales esperadas
 # FALSE = reenvia todos los mensajes del canal configurado
@@ -236,7 +254,7 @@ PATRON_SENAL = re.compile(
 # HANDLER
 # =========================
 
-@client.on(events.NewMessage(chats=channel_id))
+@client.on(events.NewMessage(chats=channel_ids))
 async def handler(event):
 
     print("\n============================")
@@ -395,7 +413,7 @@ async def handler(event):
 
 print("\n===================================")
 print("BOT INICIADO")
-print("ESCUCHANDO CANAL...")
+print(f"ESCUCHANDO CANAL(ES): {channel_ids}")
 print("===================================\n")
 
 
